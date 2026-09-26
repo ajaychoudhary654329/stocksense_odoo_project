@@ -131,10 +131,6 @@ cd backend
 npm run dev
 ```
 
-The backend will run at:
-
-- http://localhost:5000
-- API health: http://localhost:5000/api/health
 
 ### 5. Run the frontend
 
@@ -142,10 +138,6 @@ The backend will run at:
 cd frontend
 npm run dev
 ```
-
-The frontend runs at:
-
-- http://127.0.0.1:5173
 
 ## Demo Account
 
