@@ -2,6 +2,7 @@ const Delivery = require('../models/Delivery');
 const Warehouse = require('../models/Warehouse');
 const Product = require('../models/Product');
 const { checkStockAvailability, processDeliveryDone } = require('../services/inventoryService');
+const nextReferenceSequence = require('../services/referenceSequence');
 
 const generateDeliveryReference = async (warehouseId) => {
   let prefix = 'WH/OUT/';
@@ -12,8 +13,7 @@ const generateDeliveryReference = async (warehouseId) => {
     }
   }
 
-  const count = await Delivery.countDocuments();
-  const sequence = (count + 1).toString().padStart(4, '0');
+  const sequence = (await nextReferenceSequence('deliveries', Delivery)).toString().padStart(4, '0');
   return `${prefix}${sequence}`;
 };
 

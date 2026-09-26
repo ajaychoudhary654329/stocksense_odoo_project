@@ -76,17 +76,17 @@ backend/
 
 ## Getting Started
 
-### 1. Environment Variables
+### 1. Local MongoDB Replica Set and Environment
 
-Copy `.env.example` to `.env`:
+The StockSense stock workflows use MongoDB transactions when available. On Windows, `start-local.ps1` starts a user-owned single-node replica set on port `27018`, initializes it on first use, and then starts the API. It stores database files under `%LOCALAPPDATA%\StockSenseMongo\rs0` and leaves the MongoDB Windows service on port `27017` untouched.
 
-```env
-PORT=5000
-MONGO_URI=mongodb://localhost:27017/stocksense
-JWT_SECRET=stocksense_hackathon_jwt_secret_key_2026
-JWT_EXPIRES_IN=1d
-CORS_ORIGIN=*
+Run from PowerShell in the backend folder:
+
+```powershell
+.\start-local.ps1
 ```
+
+The script uses `backend/.env` for stable settings. For manual setup, copy `.env.example` to `.env` and replace `JWT_SECRET` with a long random value.
 
 ### 2. Install Dependencies
 
@@ -94,13 +94,13 @@ CORS_ORIGIN=*
 npm install
 ```
 
-### 3. Run Locally
+### 3. Run the API Manually
 
 ```bash
 npm run dev
 ```
 
-The API server will listen on `http://localhost:5000`.
+The API server listens on `http://localhost:5000`. Ensure the `rs0` MongoDB member from `start-local.ps1` is running first.
 
 ---
 

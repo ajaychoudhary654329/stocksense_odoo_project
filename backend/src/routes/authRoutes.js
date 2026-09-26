@@ -15,9 +15,20 @@ const router = express.Router();
 router.post(
   '/register',
   [
-    body('loginId').trim().notEmpty().withMessage('loginId is required'),
-    body('email').isEmail().withMessage('Valid email is required'),
-    body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+    body('loginId')
+      .trim()
+      .isLength({ min: 6, max: 12 })
+      .withMessage('Login ID must be between 6 and 12 characters'),
+    body('email').trim().isEmail().withMessage('Valid email is required'),
+    body('password')
+      .isLength({ min: 9 })
+      .withMessage('Password must be longer than 8 characters')
+      .matches(/[a-z]/)
+      .withMessage('Password must include a lowercase letter')
+      .matches(/[A-Z]/)
+      .withMessage('Password must include an uppercase letter')
+      .matches(/[^A-Za-z0-9]/)
+      .withMessage('Password must include a special character'),
     validate,
   ],
   register

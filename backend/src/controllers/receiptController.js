@@ -2,6 +2,7 @@ const Receipt = require('../models/Receipt');
 const Warehouse = require('../models/Warehouse');
 const Product = require('../models/Product');
 const { processReceiptDone } = require('../services/inventoryService');
+const nextReferenceSequence = require('../services/referenceSequence');
 
 // Helper to generate next reference string
 const generateReceiptReference = async (warehouseId) => {
@@ -13,8 +14,7 @@ const generateReceiptReference = async (warehouseId) => {
     }
   }
 
-  const count = await Receipt.countDocuments();
-  const sequence = (count + 1).toString().padStart(4, '0');
+  const sequence = (await nextReferenceSequence('receipts', Receipt)).toString().padStart(4, '0');
   return `${prefix}${sequence}`;
 };
 
