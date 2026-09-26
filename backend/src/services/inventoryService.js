@@ -3,11 +3,22 @@ const Inventory = require('../models/Inventory');
 const StockMove = require('../models/StockMove');
 const Location = require('../models/Location');
 
+const startTransactionIfSupported = async () => {
+  const hello = await mongoose.connection.db.admin().command({ hello: 1 });
+  if (!hello.setName && hello.msg !== 'isdbgrid') {
+    return null;
+  }
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  return session;
+};
+
 /**
  * Checks available stock for lines of products.
  * Available stock = onHand - reserved
  */
-const checkStockAvailability = async (lines, locationId = null) => {
+const checkStockAvailability = async (lines, locationId = null, session = null) => {
   const warnings = [];
   let allAvailable = true;
 
@@ -17,7 +28,9 @@ const checkStockAvailability = async (lines, locationId = null) => {
       query.locationId = locationId;
     }
 
-    const invRecords = await Inventory.find(query);
+    const inventoryQuery = Inventory.find(query);
+    if (session) inventoryQuery.session(session);
+    const invRecords = await inventoryQuery;
     const totalOnHand = invRecords.reduce((acc, curr) => acc + (curr.onHand || 0), 0);
     const totalReserved = invRecords.reduce((acc, curr) => acc + (curr.reserved || 0), 0);
     const available = totalOnHand - totalReserved;
@@ -45,17 +58,8 @@ const checkStockAvailability = async (lines, locationId = null) => {
  * Creates StockMove IN records.
  */
 const processReceiptDone = async (receipt, userId) => {
-  let session = null;
-  let isTransactionStarted = false;
-
-  try {
-    session = await mongoose.startSession();
-    session.startTransaction();
-    isTransactionStarted = true;
-  } catch (err) {
-    // Session/Transaction not supported (standalone Mongo), fallback to non-transactional
-    session = null;
-  }
+  const session = await startTransactionIfSupported();
+  const isTransactionStarted = Boolean(session);
 
   try {
     // Find default location for warehouse if available
@@ -115,9 +119,7 @@ const processReceiptDone = async (receipt, userId) => {
     }
     throw error;
   } finally {
-    if (session) {
-      session.endSession();
-    }
+    if (session) await session.endSession();
   }
 };
 
@@ -127,16 +129,8 @@ const processReceiptDone = async (receipt, userId) => {
  * Creates StockMove OUT records.
  */
 const processDeliveryDone = async (delivery, userId) => {
-  let session = null;
-  let isTransactionStarted = false;
-
-  try {
-    session = await mongoose.startSession();
-    session.startTransaction();
-    isTransactionStarted = true;
-  } catch (err) {
-    session = null;
-  }
+  const session = await startTransactionIfSupported();
+  const isTransactionStarted = Boolean(session);
 
   try {
     const location = await Location.findOne({ warehouseId: delivery.warehouseId }).session(session);
@@ -144,7 +138,7 @@ const processDeliveryDone = async (delivery, userId) => {
     const locationName = location ? location.name : 'Stock';
 
     // Verify stock availability again
-    const availability = await checkStockAvailability(delivery.lines, locationId);
+    const availability = await checkStockAvailability(delivery.lines, locationId, session);
     if (!availability.isAvailable) {
       throw new Error('Insufficient stock to complete delivery');
     }
@@ -198,9 +192,7 @@ const processDeliveryDone = async (delivery, userId) => {
     }
     throw error;
   } finally {
-    if (session) {
-      session.endSession();
-    }
+    if (session) await session.endSession();
   }
 };
 
