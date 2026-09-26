@@ -94,7 +94,7 @@ export default function InventoryPage() {
                         </thead>
                         <tbody>
                             {items.map((item) => {
-                                const freeToUse = (item.onHand || 0) - (item.reserved || 0);
+                                const freeToUse = item.freeToUse ?? Math.max(0, (item.onHand || 0) - (item.reserved || 0));
                                 return (
                                     <tr key={item.productId || item.id}>
                                         <td>
@@ -147,7 +147,7 @@ export default function InventoryPage() {
                                 <option value="">Default Warehouse Stock</option>
                                 {locations.map((loc) => (
                                     <option key={loc.id || loc._id} value={loc.id || loc._id}>
-                                        {loc.name} ({loc.type})
+                                        {loc.name} ({loc.shortCode})
                                     </option>
                                 ))}
                             </select>

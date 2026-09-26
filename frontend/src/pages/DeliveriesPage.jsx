@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useState } from 'react';
-import { Link, useNavigate, useOutletContext } from 'react-router-dom';
+import { Link, useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
 import { deliveriesApi } from '../api/deliveries';
 import { productsApi } from '../api/products';
 import { warehousesApi } from '../api/warehouses';
@@ -15,11 +15,12 @@ const emptyForm = { warehouseId: '', contact: '', scheduledDate: '', lines: [{ p
 export default function DeliveriesPage() {
     const navigate = useNavigate();
     const { user } = useOutletContext();
+    const [searchParams] = useSearchParams();
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [search, setSearch] = useState('');
-    const [status, setStatus] = useState('');
+    const [status, setStatus] = useState(() => searchParams.get('status') || '');
     const [warehouses, setWarehouses] = useState([]);
     const [products, setProducts] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -28,6 +29,7 @@ export default function DeliveriesPage() {
     const [submitting, setSubmitting] = useState(false);
     const [view, setView] = useState('list');
     const [refreshKey, setRefreshKey] = useState(0);
+    const [shortage, setShortage] = useState(null);
 
     const loadDeliveries = useEffectEvent(async () => {
         try {
@@ -139,13 +141,38 @@ export default function DeliveriesPage() {
 
     const handleStatusAction = async (delivery, nextStatus) => {
         try {
-            await deliveriesApi.setStatus(delivery.id || delivery._id, nextStatus);
-            emitToast(nextStatus === 'READY' ? 'Delivery marked ready.' : 'Delivery completed and stock deducted.');
+            const result = await deliveriesApi.setStatus(delivery.id || delivery._id, nextStatus);
+            if (result?.status === 'WAITING' && result.warnings?.length) {
+                setShortage({ reference: delivery.reference, warnings: result.warnings });
+                emitToast('Delivery is waiting for available stock.', 'warning');
+            } else {
+                emitToast(nextStatus === 'READY' ? 'Delivery marked ready.' : 'Delivery completed and stock deducted.');
+            }
             setRefreshKey((current) => current + 1);
         } catch (err) {
             setError(err.message || 'Unable to update delivery status.');
+            if (err.payload?.error?.warnings?.length) {
+                setShortage({ reference: delivery.reference, warnings: err.payload.error.warnings });
+            }
             emitToast(err.message || 'Unable to update delivery status.', 'error');
         }
+    };
+
+    const handleCancel = async (delivery) => {
+        if (!window.confirm(`Cancel delivery ${delivery.reference}?`)) return;
+        try {
+            await deliveriesApi.cancel(delivery.id || delivery._id);
+            emitToast('Delivery cancelled.');
+            setRefreshKey((current) => current + 1);
+        } catch (err) {
+            setError(err.message || 'Unable to cancel delivery.');
+            emitToast(err.message || 'Unable to cancel delivery.', 'error');
+        }
+    };
+
+    const productName = (productId) => {
+        const product = products.find((item) => (item.id || item._id) === String(productId));
+        return product ? `[${product.code}] ${product.name}` : String(productId);
     };
 
     const handlePrint = async (delivery) => {
@@ -254,6 +281,11 @@ export default function DeliveriesPage() {
                                                         Validate
                                                     </button>
                                                 )}
+                                                {!['DONE', 'CANCELLED'].includes(item.status) && (
+                                                    <button type="button" className="btn btn-outline-danger btn-sm" onClick={() => handleCancel(item)}>
+                                                        Cancel
+                                                    </button>
+                                                )}
                                                 {item.status === 'DONE' && (
                                                     <button type="button" className="btn btn-secondary btn-sm" onClick={() => handlePrint(item)}>
                                                         Print
@@ -330,6 +362,25 @@ export default function DeliveriesPage() {
                         </button>
                     </div>
                 </form>
+            </Modal>
+            <Modal
+                isOpen={Boolean(shortage)}
+                title={`Stock Shortage${shortage?.reference ? ` — ${shortage.reference}` : ''}`}
+                onClose={() => setShortage(null)}
+            >
+                {shortage && (
+                    <div className="shortage-list">
+                        <p>This delivery is waiting for stock. The requested quantities exceed current availability.</p>
+                        {shortage.warnings.map((warning) => (
+                            <div className="shortage-row" key={warning.productId}>
+                                <strong>{productName(warning.productId)}</strong>
+                                <span>Requested {warning.requested}</span>
+                                <span>Available {warning.available}</span>
+                                <b>Short {warning.shortage}</b>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </Modal>
         </div>
     );

@@ -148,6 +148,18 @@ export default function ReceiptsPage() {
         }
     };
 
+    const handleCancel = async (receipt) => {
+        if (!window.confirm(`Cancel receipt ${receipt.reference}?`)) return;
+        try {
+            await receiptsApi.cancel(receipt.id || receipt._id);
+            emitToast('Receipt cancelled.');
+            setRefreshKey((current) => current + 1);
+        } catch (err) {
+            setError(err.message || 'Unable to cancel receipt.');
+            emitToast(err.message || 'Unable to cancel receipt.', 'error');
+        }
+    };
+
     const handlePrint = async (receipt) => {
         try {
             await receiptsApi.print(receipt.id || receipt._id);
@@ -239,6 +251,11 @@ export default function ReceiptsPage() {
                                                 {item.status === 'READY' && (
                                                     <button type="button" className="btn btn-primary btn-sm" onClick={() => handleStatusAction(item, 'DONE')}>
                                                         Validate
+                                                    </button>
+                                                )}
+                                                {!['DONE', 'CANCELLED'].includes(item.status) && (
+                                                    <button type="button" className="btn btn-outline-danger btn-sm" onClick={() => handleCancel(item)}>
+                                                        Cancel
                                                     </button>
                                                 )}
                                                 {item.status === 'DONE' && (
