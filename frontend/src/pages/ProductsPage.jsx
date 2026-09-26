@@ -2,6 +2,7 @@ import { useEffect, useEffectEvent, useState } from 'react';
 import { productsApi } from '../api/products';
 import Modal from '../components/Modal';
 import { formatCurrency } from '../utils/format';
+import { emitToast } from '../utils/notify';
 
 const emptyForm = { code: '', name: '', unitCost: '' };
 
@@ -67,8 +68,10 @@ export default function ProductsPage() {
 
             if (editingId) {
                 await productsApi.update(editingId, payload);
+                emitToast('Product updated successfully.');
             } else {
                 await productsApi.create(payload);
+                emitToast('Product created successfully.');
             }
 
             setIsModalOpen(false);
@@ -76,19 +79,22 @@ export default function ProductsPage() {
             setRefreshKey((current) => current + 1);
         } catch (err) {
             setError(err.message || 'Unable to save product.');
+            emitToast(err.message || 'Unable to save product.', 'error');
         } finally {
             setSubmitting(false);
         }
     };
 
     const handleDelete = async (product) => {
-        if (!window.confirm(`Delete ${product.name}?`)) return;
+        if (!window.confirm(`Are you sure you want to delete ${product.name}?`)) return;
 
         try {
             await productsApi.remove(product.id || product._id);
+            emitToast('Product deleted.');
             setRefreshKey((current) => current + 1);
         } catch (err) {
             setError(err.message || 'Unable to delete product.');
+            emitToast(err.message || 'Unable to delete product.', 'error');
         }
     };
 
@@ -96,10 +102,12 @@ export default function ProductsPage() {
         <div className="page-stack">
             <div className="page-header">
                 <div>
-                    <p className="eyebrow">Catalog</p>
-                    <h2>Products</h2>
+                    <p className="eyebrow">Master Data</p>
+                    <h2>Product Catalog</h2>
                 </div>
-                <button type="button" className="btn btn-primary" onClick={openCreateModal}>Add product</button>
+                <button type="button" className="btn btn-primary" onClick={openCreateModal}>
+                    + Add New Product
+                </button>
             </div>
 
             <div className="toolbar">
@@ -107,7 +115,7 @@ export default function ProductsPage() {
                     type="search"
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search products"
+                    placeholder="Search by code (e.g. DESK001) or name..."
                 />
             </div>
 
@@ -120,8 +128,8 @@ export default function ProductsPage() {
                     <table>
                         <thead>
                             <tr>
-                                <th>Code</th>
-                                <th>Name</th>
+                                <th>SKU / Code</th>
+                                <th>Product Name</th>
                                 <th>Unit Cost</th>
                                 <th>Actions</th>
                             </tr>
@@ -129,13 +137,17 @@ export default function ProductsPage() {
                         <tbody>
                             {items.map((item) => (
                                 <tr key={item.id || item._id}>
-                                    <td>{item.code}</td>
+                                    <td><strong>[{item.code}]</strong></td>
                                     <td>{item.name}</td>
                                     <td>{formatCurrency(item.unitCost)}</td>
                                     <td>
-                                        <div className="action-group">
-                                            <button type="button" className="btn btn-secondary small" onClick={() => openEditModal(item)}>Edit</button>
-                                            <button type="button" className="btn btn-danger small" onClick={() => handleDelete(item)}>Delete</button>
+                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                            <button type="button" className="btn btn-secondary btn-sm" onClick={() => openEditModal(item)}>
+                                                Edit
+                                            </button>
+                                            <button type="button" className="btn btn-outline-danger btn-sm" onClick={() => handleDelete(item)}>
+                                                Delete
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
@@ -145,26 +157,50 @@ export default function ProductsPage() {
                 </div>
             )}
 
-            <Modal open={isModalOpen} title={editingId ? 'Edit product' : 'Add product'} onClose={() => setIsModalOpen(false)}>
+            {/* Product Form Modal */}
+            <Modal isOpen={isModalOpen} title={editingId ? 'Edit Product' : 'Add New Product'} onClose={() => setIsModalOpen(false)}>
                 <form className="entity-form" onSubmit={handleSubmit}>
-                    <div className="form-grid compact">
+                    <div className="form-grid">
                         <label>
-                            <span>Code</span>
-                            <input value={form.code} onChange={(event) => setForm((curr) => ({ ...curr, code: event.target.value }))} required />
+                            <span>Product SKU / Code</span>
+                            <input
+                                value={form.code}
+                                onChange={(event) => setForm((curr) => ({ ...curr, code: event.target.value }))}
+                                placeholder="e.g. DESK001"
+                                required
+                            />
                         </label>
                         <label>
-                            <span>Name</span>
-                            <input value={form.name} onChange={(event) => setForm((curr) => ({ ...curr, name: event.target.value }))} required />
-                        </label>
-                        <label className="full-width">
-                            <span>Unit Cost</span>
-                            <input type="number" min="0" step="0.01" value={form.unitCost} onChange={(event) => setForm((curr) => ({ ...curr, unitCost: event.target.value }))} required />
+                            <span>Product Name</span>
+                            <input
+                                value={form.name}
+                                onChange={(event) => setForm((curr) => ({ ...curr, name: event.target.value }))}
+                                placeholder="e.g. Standing Executive Desk"
+                                required
+                            />
                         </label>
                     </div>
 
+                    <label>
+                        <span>Unit Cost</span>
+                        <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={form.unitCost}
+                            onChange={(event) => setForm((curr) => ({ ...curr, unitCost: event.target.value }))}
+                            placeholder="0.00"
+                            required
+                        />
+                    </label>
+
                     <div className="form-actions">
-                        <button type="button" className="btn btn-secondary" onClick={() => setIsModalOpen(false)}>Cancel</button>
-                        <button type="submit" className="btn btn-primary" disabled={submitting}>{submitting ? 'Saving...' : editingId ? 'Save changes' : 'Create product'}</button>
+                        <button type="button" className="btn btn-secondary" onClick={() => setIsModalOpen(false)}>
+                            Cancel
+                        </button>
+                        <button type="submit" className="btn btn-primary" disabled={submitting}>
+                            {submitting ? 'Saving...' : editingId ? 'Save Changes' : 'Create Product'}
+                        </button>
                     </div>
                 </form>
             </Modal>

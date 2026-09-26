@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { warehousesApi } from '../api/warehouses';
 import Modal from '../components/Modal';
+import { emitToast } from '../utils/notify';
 
 const emptyForm = { name: '', shortCode: '', address: '' };
 
@@ -61,8 +62,10 @@ export default function WarehousesPage() {
 
             if (editingId) {
                 await warehousesApi.update(editingId, payload);
+                emitToast('Warehouse updated.');
             } else {
                 await warehousesApi.create(payload);
+                emitToast('Warehouse created.');
             }
 
             setIsModalOpen(false);
@@ -70,6 +73,7 @@ export default function WarehousesPage() {
             setRefreshKey((current) => current + 1);
         } catch (err) {
             setError(err.message || 'Unable to save warehouse.');
+            emitToast(err.message || 'Unable to save warehouse.', 'error');
         } finally {
             setSubmitting(false);
         }
@@ -79,22 +83,24 @@ export default function WarehousesPage() {
         <div className="page-stack">
             <div className="page-header">
                 <div>
-                    <p className="eyebrow">Sites</p>
+                    <p className="eyebrow">Sites & Distribution</p>
                     <h2>Warehouses</h2>
                 </div>
-                <button type="button" className="btn btn-primary" onClick={openCreateModal}>Add warehouse</button>
+                <button type="button" className="btn btn-primary" onClick={openCreateModal}>
+                    + Add Warehouse
+                </button>
             </div>
 
             {loading && <div className="page-state">Loading warehouses...</div>}
             {!loading && error && <div className="page-state error">{error}</div>}
-            {!loading && !error && items.length === 0 && <div className="page-state">No warehouses found.</div>}
+            {!loading && !error && items.length === 0 && <div className="page-state">No warehouses configured.</div>}
 
             {!loading && !error && items.length > 0 && (
                 <div className="table-wrap">
                     <table>
                         <thead>
                             <tr>
-                                <th>Name</th>
+                                <th>Warehouse Name</th>
                                 <th>Short Code</th>
                                 <th>Address</th>
                                 <th>Actions</th>
@@ -103,13 +109,13 @@ export default function WarehousesPage() {
                         <tbody>
                             {items.map((item) => (
                                 <tr key={item.id || item._id}>
-                                    <td>{item.name}</td>
-                                    <td>{item.shortCode}</td>
+                                    <td><strong>{item.name}</strong></td>
+                                    <td><span className="movement-type adjust">{item.shortCode}</span></td>
                                     <td>{item.address || '—'}</td>
                                     <td>
-                                        <div className="action-group">
-                                            <button type="button" className="btn btn-secondary small" onClick={() => openEditModal(item)}>Edit</button>
-                                        </div>
+                                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => openEditModal(item)}>
+                                            Edit
+                                        </button>
                                     </td>
                                 </tr>
                             ))}
@@ -118,26 +124,46 @@ export default function WarehousesPage() {
                 </div>
             )}
 
-            <Modal open={isModalOpen} title={editingId ? 'Edit warehouse' : 'Add warehouse'} onClose={() => setIsModalOpen(false)}>
+            {/* Warehouse Form Modal */}
+            <Modal isOpen={isModalOpen} title={editingId ? 'Edit Warehouse' : 'Add Warehouse'} onClose={() => setIsModalOpen(false)}>
                 <form className="entity-form" onSubmit={handleSubmit}>
-                    <div className="form-grid compact">
+                    <div className="form-grid">
                         <label>
-                            <span>Name</span>
-                            <input value={form.name} onChange={(event) => setForm((curr) => ({ ...curr, name: event.target.value }))} required />
+                            <span>Warehouse Name</span>
+                            <input
+                                value={form.name}
+                                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                                placeholder="e.g. Main Warehouse"
+                                required
+                            />
                         </label>
                         <label>
                             <span>Short Code</span>
-                            <input value={form.shortCode} onChange={(event) => setForm((curr) => ({ ...curr, shortCode: event.target.value }))} required />
-                        </label>
-                        <label className="full-width">
-                            <span>Address</span>
-                            <input value={form.address} onChange={(event) => setForm((curr) => ({ ...curr, address: event.target.value }))} />
+                            <input
+                                value={form.shortCode}
+                                onChange={(e) => setForm({ ...form, shortCode: e.target.value })}
+                                placeholder="e.g. WH"
+                                required
+                            />
                         </label>
                     </div>
 
+                    <label>
+                        <span>Address</span>
+                        <input
+                            value={form.address}
+                            onChange={(e) => setForm({ ...form, address: e.target.value })}
+                            placeholder="Physical address"
+                        />
+                    </label>
+
                     <div className="form-actions">
-                        <button type="button" className="btn btn-secondary" onClick={() => setIsModalOpen(false)}>Cancel</button>
-                        <button type="submit" className="btn btn-primary" disabled={submitting}>{submitting ? 'Saving...' : editingId ? 'Save changes' : 'Create warehouse'}</button>
+                        <button type="button" className="btn btn-secondary" onClick={() => setIsModalOpen(false)}>
+                            Cancel
+                        </button>
+                        <button type="submit" className="btn btn-primary" disabled={submitting}>
+                            {submitting ? 'Saving...' : editingId ? 'Save Changes' : 'Create Warehouse'}
+                        </button>
                     </div>
                 </form>
             </Modal>

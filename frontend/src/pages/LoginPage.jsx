@@ -35,31 +35,44 @@ export default function LoginPage({ onLogin }) {
             <div className="auth-card">
                 <div className="auth-header">
                     <div className="brand-mark large">S</div>
-                    <h2>Welcome back</h2>
-                    <p>Sign in to continue to StockSense</p>
+                    <h2>StockSense</h2>
+                    <p>Sign in to your inventory portal</p>
                 </div>
 
                 <form className="auth-form" onSubmit={handleSubmit}>
                     <label>
                         <span>Login ID</span>
-                        <input name="loginId" value={form.loginId} onChange={updateField} required />
+                        <input
+                            name="loginId"
+                            value={form.loginId}
+                            onChange={updateField}
+                            placeholder="Enter your Login ID"
+                            required
+                        />
                     </label>
 
                     <label>
                         <span>Password</span>
-                        <input type="password" name="password" value={form.password} onChange={updateField} required />
+                        <input
+                            type="password"
+                            name="password"
+                            value={form.password}
+                            onChange={updateField}
+                            placeholder="Enter your password"
+                            required
+                        />
                     </label>
 
                     {error && <div className="alert error">{error}</div>}
 
-                    <button type="submit" className="btn btn-primary" disabled={loading}>
-                        {loading ? 'Signing in...' : 'Login'}
+                    <button type="submit" className="btn btn-primary" style={{ padding: '12px' }} disabled={loading}>
+                        {loading ? 'Signing in...' : 'Sign In'}
                     </button>
                 </form>
 
                 <div className="auth-links">
-                    <Link to="/register">Create account</Link>
-                    <Link to="/forgot-password">Forgot password?</Link>
+                    <Link to="/register">Create Account</Link>
+                    <Link to="/forgot-password">Forgot Password?</Link>
                 </div>
             </div>
         </div>

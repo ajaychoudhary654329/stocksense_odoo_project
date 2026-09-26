@@ -32,7 +32,7 @@ export default function InventoryPage() {
 
     const openAdjustment = (item) => {
         setAdjustingItem(item);
-        setAdjustForm({ locationId: '', quantity: '', reason: '' });
+        setAdjustForm({ locationId: locations[0]?.id || locations[0]?._id || '', quantity: '', reason: '' });
     };
 
     const handleAdjustment = async (event) => {
@@ -43,19 +43,19 @@ export default function InventoryPage() {
         try {
             const quantity = Number(adjustForm.quantity);
             if (!Number.isFinite(quantity) || quantity === 0) {
-                throw new Error('Enter a non-zero adjustment quantity. Use a negative number to remove stock.');
+                throw new Error('Enter a non-zero adjustment quantity. Use a positive number to add stock, or a negative number to remove stock.');
             }
 
             await inventoryApi.adjust({
                 productId: adjustingItem.productId || adjustingItem.id,
                 locationId: adjustForm.locationId || undefined,
                 quantity,
-                reason: adjustForm.reason || 'Manual adjustment',
+                reason: adjustForm.reason || 'Manual inventory count adjustment',
             });
 
             setAdjustingItem(null);
             setAdjustForm({ locationId: '', quantity: '', reason: '' });
-            emitToast('Inventory adjustment applied.');
+            emitToast('Inventory adjustment successfully recorded.');
             setRefreshKey((current) => current + 1);
         } catch (err) {
             setError(err.message || 'Unable to adjust inventory.');
@@ -69,12 +69,12 @@ export default function InventoryPage() {
         <div className="page-stack">
             <div className="page-header">
                 <div>
-                    <p className="eyebrow">Stock</p>
-                    <h2>Inventory</h2>
+                    <p className="eyebrow">Stock Control</p>
+                    <h2>Inventory Levels & Free to Use Stock</h2>
                 </div>
             </div>
 
-            {loading && <div className="page-state">Loading inventory...</div>}
+            {loading && <div className="page-state">Loading warehouse inventory...</div>}
             {!loading && error && <div className="page-state error">{error}</div>}
             {!loading && !error && items.length === 0 && <div className="page-state">No inventory records found.</div>}
 
@@ -83,8 +83,8 @@ export default function InventoryPage() {
                     <table>
                         <thead>
                             <tr>
-                                <th>Product</th>
-                                <th>Locations</th>
+                                <th>Product Name</th>
+                                <th>Storage Locations</th>
                                 <th>Unit Cost</th>
                                 <th>On Hand</th>
                                 <th>Reserved</th>
@@ -93,49 +93,95 @@ export default function InventoryPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {items.map((item) => (
-                                <tr key={item.productId || item.id}>
-                                    <td>{item.product}</td>
-                                    <td>{item.locations?.length ? item.locations.map((location) => location.location).join(', ') : 'Main Stock'}</td>
-                                    <td>{formatCurrency(item.unitCost)}</td>
-                                    <td>{item.onHand}</td>
-                                    <td>{item.reserved}</td>
-                                    <td className={item.freeToUse <= 0 ? 'stock-empty' : ''}>{item.freeToUse}</td>
-                                    <td>
-                                        <button type="button" className="btn btn-secondary small" onClick={() => openAdjustment(item)}>Adjust</button>
-                                    </td>
-                                </tr>
-                            ))}
+                            {items.map((item) => {
+                                const freeToUse = (item.onHand || 0) - (item.reserved || 0);
+                                return (
+                                    <tr key={item.productId || item.id}>
+                                        <td>
+                                            <strong>{item.product}</strong>
+                                        </td>
+                                        <td>
+                                            {item.locations?.length
+                                                ? item.locations.map((loc) => loc.location).join(', ')
+                                                : 'Main Warehouse Stock'}
+                                        </td>
+                                        <td>{formatCurrency(item.unitCost)}</td>
+                                        <td><strong>{item.onHand ?? 0}</strong></td>
+                                        <td><span style={{ color: 'var(--warning-text)', fontWeight: 600 }}>{item.reserved ?? 0}</span></td>
+                                        <td>
+                                            <span className={`status-badge ${freeToUse > 0 ? 'success' : freeToUse === 0 ? 'warning' : 'muted'}`}>
+                                                {freeToUse} Free
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <button type="button" className="btn btn-secondary btn-sm" onClick={() => openAdjustment(item)}>
+                                                Adjust Stock
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>
             )}
 
-            <Modal open={Boolean(adjustingItem)} title={`Adjust inventory: ${adjustingItem?.product || ''}`} onClose={() => setAdjustingItem(null)}>
+            {/* Stock Adjustment Modal */}
+            <Modal
+                isOpen={Boolean(adjustingItem)}
+                onClose={() => setAdjustingItem(null)}
+                title={`Adjust Stock — ${adjustingItem?.product || 'Product'}`}
+            >
                 <form className="entity-form" onSubmit={handleAdjustment}>
-                    <div className="form-grid compact">
-                        <label className="full-width">
+                    <p style={{ fontSize: '0.875rem', color: 'var(--muted-text)' }}>
+                        Current On Hand: <strong>{adjustingItem?.onHand ?? 0}</strong> | Reserved: <strong>{adjustingItem?.reserved ?? 0}</strong>
+                    </p>
+
+                    <div className="form-grid">
+                        <label>
                             <span>Location</span>
-                            <select value={adjustForm.locationId} onChange={(event) => setAdjustForm((curr) => ({ ...curr, locationId: event.target.value }))}>
-                                <option value="">Main Stock</option>
-                                {locations.map((location) => (
-                                    <option key={location.id || location._id} value={location.id || location._id}>{location.warehouseId?.shortCode || ''} {location.name}</option>
+                            <select
+                                value={adjustForm.locationId}
+                                onChange={(e) => setAdjustForm({ ...adjustForm, locationId: e.target.value })}
+                            >
+                                <option value="">Default Warehouse Stock</option>
+                                {locations.map((loc) => (
+                                    <option key={loc.id || loc._id} value={loc.id || loc._id}>
+                                        {loc.name} ({loc.type})
+                                    </option>
                                 ))}
                             </select>
                         </label>
-                        <label className="full-width">
-                            <span>Adjustment quantity</span>
-                            <input type="number" step="1" value={adjustForm.quantity} onChange={(event) => setAdjustForm((curr) => ({ ...curr, quantity: event.target.value }))} placeholder="Use a negative value to remove stock" required />
-                        </label>
-                        <label className="full-width">
-                            <span>Reason</span>
-                            <input value={adjustForm.reason} onChange={(event) => setAdjustForm((curr) => ({ ...curr, reason: event.target.value }))} placeholder="Cycle count, return, loss..." />
+
+                        <label>
+                            <span>Quantity Adjustment (+ / -)</span>
+                            <input
+                                type="number"
+                                value={adjustForm.quantity}
+                                onChange={(e) => setAdjustForm({ ...adjustForm, quantity: e.target.value })}
+                                placeholder="e.g. 10 or -5"
+                                required
+                            />
                         </label>
                     </div>
 
+                    <label>
+                        <span>Adjustment Reason</span>
+                        <input
+                            type="text"
+                            value={adjustForm.reason}
+                            onChange={(e) => setAdjustForm({ ...adjustForm, reason: e.target.value })}
+                            placeholder="Physical count / damage / discrepancy"
+                        />
+                    </label>
+
                     <div className="form-actions">
-                        <button type="button" className="btn btn-secondary" onClick={() => setAdjustingItem(null)}>Cancel</button>
-                        <button type="submit" className="btn btn-primary" disabled={submitting}>{submitting ? 'Saving...' : 'Apply adjustment'}</button>
+                        <button type="button" className="btn btn-secondary" onClick={() => setAdjustingItem(null)}>
+                            Cancel
+                        </button>
+                        <button type="submit" className="btn btn-primary" disabled={submitting}>
+                            {submitting ? 'Applying...' : 'Apply Adjustment'}
+                        </button>
                     </div>
                 </form>
             </Modal>

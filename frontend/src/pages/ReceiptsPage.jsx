@@ -140,23 +140,11 @@ export default function ReceiptsPage() {
     const handleStatusAction = async (receipt, nextStatus) => {
         try {
             await receiptsApi.setStatus(receipt.id || receipt._id, nextStatus);
-            emitToast(nextStatus === 'READY' ? 'Receipt marked ready.' : 'Receipt completed.');
+            emitToast(nextStatus === 'READY' ? 'Receipt marked ready.' : 'Receipt completed and inventory updated.');
             setRefreshKey((current) => current + 1);
         } catch (err) {
             setError(err.message || 'Unable to update receipt status.');
             emitToast(err.message || 'Unable to update receipt status.', 'error');
-        }
-    };
-
-    const handleCancel = async (receipt) => {
-        if (!window.confirm('Cancel this receipt?')) return;
-        try {
-            await receiptsApi.cancel(receipt.id || receipt._id);
-            emitToast('Receipt cancelled.');
-            setRefreshKey((current) => current + 1);
-        } catch (err) {
-            setError(err.message || 'Unable to cancel receipt.');
-            emitToast(err.message || 'Unable to cancel receipt.', 'error');
         }
     };
 
@@ -172,10 +160,12 @@ export default function ReceiptsPage() {
         <div className="page-stack">
             <div className="page-header">
                 <div>
-                    <p className="eyebrow">Operations</p>
-                    <h2>Receipts</h2>
+                    <p className="eyebrow">Stock Inflow</p>
+                    <h2>Receipt Operations</h2>
                 </div>
-                <button type="button" className="btn btn-primary" onClick={openCreateModal}>New receipt</button>
+                <button type="button" className="btn btn-primary" onClick={openCreateModal}>
+                    + Create Receipt
+                </button>
             </div>
 
             <div className="toolbar">
@@ -183,10 +173,10 @@ export default function ReceiptsPage() {
                     type="search"
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search by reference or contact"
+                    placeholder="Search reference (e.g. WH/IN/0001) or contact..."
                 />
                 <select value={status} onChange={(event) => setStatus(event.target.value)}>
-                    <option value="">All statuses</option>
+                    <option value="">All Statuses</option>
                     <option value="DRAFT">DRAFT</option>
                     <option value="READY">READY</option>
                     <option value="DONE">DONE</option>
@@ -200,7 +190,11 @@ export default function ReceiptsPage() {
             {!loading && !error && items.length === 0 && <div className="page-state">No receipts found.</div>}
 
             {!loading && !error && items.length > 0 && view === 'kanban' && (
-                <OperationKanban items={items} statuses={['DRAFT', 'READY', 'DONE', 'CANCELLED']} onSelect={(item) => navigate(`/receipts/${item.id || item._id}`)} />
+                <OperationKanban
+                    items={items}
+                    statuses={['DRAFT', 'READY', 'DONE', 'CANCELLED']}
+                    onSelect={(item) => navigate(`/receipts/${item.id || item._id}`)}
+                />
             )}
 
             {!loading && !error && items.length > 0 && view === 'list' && (
@@ -209,86 +203,118 @@ export default function ReceiptsPage() {
                         <thead>
                             <tr>
                                 <th>Reference</th>
-                                <th>Contact</th>
+                                <th>Receive From (Contact)</th>
                                 <th>Warehouse</th>
-                                <th>Schedule Date</th>
+                                <th>Scheduled Date</th>
                                 <th>Status</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {items.map((item) => (
-                                <tr key={item.id || item._id}>
-                                    <td><Link className="text-button" to={`/receipts/${item.id || item._id}`}>{item.reference}</Link></td>
-                                    <td>{item.contact}</td>
-                                    <td>{item.warehouseId?.name || '—'}</td>
-                                    <td className={new Date(item.scheduledDate) < new Date(new Date().setHours(0, 0, 0, 0)) && !['DONE', 'CANCELLED'].includes(item.status) ? 'late-date' : ''}>{formatDate(item.scheduledDate)}</td>
-                                    <td><StatusBadge status={item.status} /></td>
-                                    <td>
-                                        <div className="action-group">
-                                            {item.status === 'DRAFT' && <button type="button" className="btn btn-secondary small" onClick={() => openEditModal(item)}>Edit</button>}
-                                            {item.status === 'DRAFT' && <button type="button" className="btn btn-primary small" onClick={() => handleStatusAction(item, 'READY')}>To Do</button>}
-                                            {item.status === 'READY' && <button type="button" className="btn btn-primary small" onClick={() => handleStatusAction(item, 'DONE')}>Validate</button>}
-                                            {item.status !== 'CANCELLED' && item.status !== 'DONE' && <button type="button" className="btn btn-danger small" onClick={() => handleCancel(item)}>Cancel</button>}
-                                            {item.status === 'DONE' && <button type="button" className="btn btn-secondary small" onClick={() => handlePrint(item)}>Print</button>}
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
+                            {items.map((item) => {
+                                const itemId = item.id || item._id;
+                                return (
+                                    <tr key={itemId}>
+                                        <td>
+                                            <Link to={`/receipts/${itemId}`} className="text-button">
+                                                {item.reference}
+                                            </Link>
+                                        </td>
+                                        <td>{item.contact || '—'}</td>
+                                        <td>{item.warehouseId?.name || 'Main Warehouse'}</td>
+                                        <td>{formatDate(item.scheduledDate)}</td>
+                                        <td><StatusBadge status={item.status} /></td>
+                                        <td>
+                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                {item.status === 'DRAFT' && (
+                                                    <>
+                                                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleStatusAction(item, 'READY')}>
+                                                            Mark Ready
+                                                        </button>
+                                                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => openEditModal(item)}>
+                                                            Edit
+                                                        </button>
+                                                    </>
+                                                )}
+                                                {item.status === 'READY' && (
+                                                    <button type="button" className="btn btn-primary btn-sm" onClick={() => handleStatusAction(item, 'DONE')}>
+                                                        Validate
+                                                    </button>
+                                                )}
+                                                {item.status === 'DONE' && (
+                                                    <button type="button" className="btn btn-secondary btn-sm" onClick={() => handlePrint(item)}>
+                                                        Print
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>
             )}
 
-            <Modal open={isModalOpen} title={editingId ? 'Edit receipt' : 'Create receipt'} onClose={() => setIsModalOpen(false)}>
+            {/* Receipt Modal */}
+            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? 'Edit Receipt' : 'New Receipt'}>
                 <form className="entity-form" onSubmit={handleSubmit}>
-                    <div className="form-grid compact">
+                    <div className="form-grid">
                         <label>
                             <span>Warehouse</span>
-                            <select value={form.warehouseId} onChange={(event) => setForm((current) => ({ ...current, warehouseId: event.target.value }))} required>
-                                <option value="">Select warehouse</option>
-                                {warehouses.map((warehouse) => (
-                                    <option key={warehouse.id || warehouse._id} value={warehouse.id || warehouse._id}>{warehouse.name}</option>
+                            <select value={form.warehouseId} onChange={(e) => setForm({ ...form, warehouseId: e.target.value })} required>
+                                <option value="">Select Warehouse</option>
+                                {warehouses.map((w) => (
+                                    <option key={w.id || w._id} value={w.id || w._id}>{w.name} ({w.shortCode})</option>
                                 ))}
                             </select>
                         </label>
+
                         <label>
-                            <span>Receive From</span>
-                            <input value={form.contact} onChange={(event) => setForm((current) => ({ ...current, contact: event.target.value }))} required />
+                            <span>Receive From (Contact / Vendor)</span>
+                            <input value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })} placeholder="Vendor Name" required />
                         </label>
-                        <label className="full-width">
-                            <span>Schedule date</span>
-                            <input type="date" value={form.scheduledDate} onChange={(event) => setForm((current) => ({ ...current, scheduledDate: event.target.value }))} required />
-                        </label>
-                        <label className="full-width">
-                            <span>Responsible</span>
-                            <input value={user?.loginId || ''} readOnly />
+
+                        <label>
+                            <span>Scheduled Date</span>
+                            <input type="date" value={form.scheduledDate} onChange={(e) => setForm({ ...form, scheduledDate: e.target.value })} required />
                         </label>
                     </div>
 
-                    <div className="line-list">
-                        <div className="inline-heading">
-                            <strong>Products</strong>
-                            <button type="button" className="btn btn-secondary small" onClick={addLine}>Add line</button>
+                    <div className="lines-section">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>Products</span>
+                            <button type="button" className="btn btn-secondary btn-sm" onClick={addLine}>+ Add Line</button>
                         </div>
 
                         {form.lines.map((line, index) => (
-                            <div key={`${index}-line`} className="line-row">
-                                <select value={line.productId} onChange={(event) => updateLine(index, 'productId', event.target.value)} required>
-                                    <option value="">Select product</option>
-                                    {products.map((product) => (
-                                        <option key={product.id || product._id} value={product.id || product._id}>{product.name}</option>
+                            <div key={index} className="line-row">
+                                <select value={line.productId} onChange={(e) => updateLine(index, 'productId', e.target.value)} required>
+                                    <option value="">Select Product</option>
+                                    {products.map((p) => (
+                                        <option key={p.id || p._id} value={p.id || p._id}>[{p.code}] {p.name}</option>
                                     ))}
                                 </select>
-                                <input type="number" min="1" value={line.quantity} onChange={(event) => updateLine(index, 'quantity', event.target.value)} required />
-                                {form.lines.length > 1 && <button type="button" className="btn btn-danger small" onClick={() => removeLine(index)}>Remove</button>}
+                                <input
+                                    type="number"
+                                    min="1"
+                                    value={line.quantity}
+                                    onChange={(e) => updateLine(index, 'quantity', e.target.value)}
+                                    placeholder="Qty"
+                                    required
+                                />
+                                {form.lines.length > 1 && (
+                                    <button type="button" className="btn btn-outline-danger btn-sm" onClick={() => removeLine(index)}>✕</button>
+                                )}
                             </div>
                         ))}
                     </div>
 
                     <div className="form-actions">
                         <button type="button" className="btn btn-secondary" onClick={() => setIsModalOpen(false)}>Cancel</button>
-                        <button type="submit" className="btn btn-primary" disabled={submitting}>{submitting ? 'Saving...' : editingId ? 'Save changes' : 'Create receipt'}</button>
+                        <button type="submit" className="btn btn-primary" disabled={submitting}>
+                            {submitting ? 'Saving...' : editingId ? 'Update Receipt' : 'Create Receipt'}
+                        </button>
                     </div>
                 </form>
             </Modal>

@@ -37,8 +37,8 @@ export default function MovesPage() {
         <div className="page-stack">
             <div className="page-header">
                 <div>
-                    <p className="eyebrow">Traceability</p>
-                    <h2>Move history</h2>
+                    <p className="eyebrow">Inventory Audit & Traceability</p>
+                    <h2>Stock Move History</h2>
                 </div>
             </div>
 
@@ -47,12 +47,12 @@ export default function MovesPage() {
                     type="search"
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search by reference or contact"
+                    placeholder="Search by reference, contact or product..."
                 />
                 <select value={type} onChange={(event) => setType(event.target.value)}>
-                    <option value="">All types</option>
-                    <option value="IN">IN</option>
-                    <option value="OUT">OUT</option>
+                    <option value="">All Movement Types</option>
+                    <option value="IN">IN (Incoming Stock)</option>
+                    <option value="OUT">OUT (Outgoing Deliveries)</option>
                     <option value="ADJUSTMENT">ADJUSTMENT</option>
                 </select>
                 <ViewToggle value={view} onChange={setView} />
@@ -60,7 +60,7 @@ export default function MovesPage() {
 
             {loading && <div className="page-state">Loading move history...</div>}
             {!loading && error && <div className="page-state error">{error}</div>}
-            {!loading && !error && items.length === 0 && <div className="page-state">No stock moves found.</div>}
+            {!loading && !error && items.length === 0 && <div className="page-state">No stock moves recorded.</div>}
 
             {!loading && !error && items.length > 0 && view === 'kanban' && (
                 <OperationKanban items={items} statuses={['DONE']} onSelect={(item) => setDetailId(item.id || item._id)} />
@@ -71,36 +71,53 @@ export default function MovesPage() {
                     <table>
                         <thead>
                             <tr>
-                                <th>Reference</th>
+                                <th>Movement Reference</th>
+                                <th>Date</th>
+                                <th>Type</th>
+                                <th>Product</th>
+                                <th>From Location</th>
+                                <th>To Location</th>
+                                <th>Quantity</th>
                                 <th>Contact</th>
                                 <th>Status</th>
-                                <th>Date</th>
-                                <th>From</th>
-                                <th>To</th>
-                                <th>Product</th>
-                                <th>Quantity</th>
-                                <th>Type</th>
                             </tr>
                         </thead>
                         <tbody>
                             {items.map((item) => (
-                                <tr key={item.id || item._id} className={`move-row ${item.type === 'IN' ? 'move-in' : item.type === 'OUT' ? 'move-out' : 'move-adjustment'}`}>
-                                    <td><button type="button" className="text-button" onClick={() => setDetailId(item.id || item._id)}>{item.reference}</button></td>
-                                    <td>{item.contact || '—'}</td>
-                                    <td><StatusBadge status={item.status} /></td>
+                                <tr
+                                    key={item.id || item._id}
+                                    className={`move-row ${item.type === 'IN' ? 'move-in' : item.type === 'OUT' ? 'move-out' : 'move-adjustment'}`}
+                                >
+                                    <td>
+                                        <button
+                                            type="button"
+                                            className="text-button"
+                                            onClick={() => setDetailId(item.id || item._id)}
+                                        >
+                                            {item.reference}
+                                        </button>
+                                    </td>
                                     <td>{formatDate(item.date || item.createdAt)}</td>
+                                    <td>
+                                        <span className={`movement-type ${item.type === 'IN' ? 'in' : item.type === 'OUT' ? 'out' : 'adjust'}`}>
+                                            {item.type}
+                                        </span>
+                                    </td>
+                                    <td><strong>{item.product || '—'}</strong></td>
                                     <td>{item.from || '—'}</td>
                                     <td>{item.to || '—'}</td>
-                                    <td>{item.product || '—'}</td>
-                                    <td>{item.quantity}</td>
-                                    <td><span className={`movement-type ${item.type === 'IN' ? 'in' : item.type === 'OUT' ? 'out' : 'adjust'}`}>{item.type}</span></td>
+                                    <td><strong>{item.quantity}</strong></td>
+                                    <td>{item.contact || '—'}</td>
+                                    <td><StatusBadge status={item.status} /></td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                 </div>
             )}
-            <MoveDetailsModal open={Boolean(detailId)} id={detailId} onClose={() => setDetailId(null)} />
+
+            {/* Move Details Modal */}
+            <MoveDetailsModal id={detailId} onClose={() => setDetailId(null)} />
         </div>
     );
 }
